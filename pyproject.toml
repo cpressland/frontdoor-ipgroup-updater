@@ -1,0 +1,38 @@
+[tool.poetry]
+name = "frontdoor-ipgroup-updater"
+version = "0.0.0"
+description = "Automatically Update Azure IP Groups with the latest Azure Front Door IP Ranges"
+authors = ["Chris Pressland <mail@cpressland.io>"]
+license = "Apache 2.0"
+readme = "README.md"
+packages = [{include = "frontdoor_ipgroup_updater"}]
+
+[tool.poetry.scripts]
+frontdoor-ipgroup-updater = "frontdoor_ipgroup_updater.main:main"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+requests = "^2.28.1"
+beautifulsoup4 = "^4.11.1"
+tomli = "^2.0.1"
+python-json-logger = "^2.0.4"
+pydantic = "^1.10.2"
+msal = "^1.18.0"
+
+[tool.poetry.group.dev.dependencies]
+black = "^22.8.0"
+Flake8-pyproject = "^1.1.0.post0"
+isort = "^5.10.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 120
+
+[tool.isort]
+profile = "black"
+
+[tool.flake8]
+max-line-length = 120
