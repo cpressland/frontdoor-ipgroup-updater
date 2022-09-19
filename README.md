@@ -44,6 +44,40 @@ $ az role assignment create \
   --scope "/subscriptions/{your_subscription}/resourceGroups/{your_resource_group}/providers/Microsoft.Network/ipGroups/{ip_group_name}" 
 ```
 
+## Create and Assign a Custom Role for viewing Service Tags
+
+Create a file called `role.json` with the following content
+
+```json
+{
+    "Name": "Service Tag Reader",
+    "IsCustom": true,
+    "Description": "Reads Service Tags via Rest API",
+    "Actions": [
+        "Microsoft.Network/locations/serviceTagDetails/read"
+    ],
+    "NotActions": [],
+    "AssignableScopes": [
+        "/subscriptions/{your_subscription}",
+    ]
+}
+```
+
+Now apply this with:
+
+```shell
+$ az role definition create --role-definition role.json
+```
+
+Finally, assign the role with:
+
+```shell
+$ az role assignment create \
+  --assignee "{princial_ip}" \
+  --role "Service Tag Reader" \
+  --scope "/subscriptions/{your_subscription}"
+```
+
 ## Run the Application
 
 The Application can be run in one of four ways:
@@ -77,9 +111,3 @@ ip_group_name = "frontdoor_ips"
 ```
 
 Note, `application_secret` is missing from the config file as its expected that you'd inject it via the aformentioned file in `/var/run/secrets`. Pydantic allows any configuration to be stored as a file, config, or environment variable. So you can mix and match for whatever works for you.
-
-# Things that could go wrong
-
-This application simply updates the IP Group with whatever it gets back from the Microsoft Documentation page, if Microsoft upload a borked version of this document it _could_ end up causing all traffic to be dropped by your firewall. For that reason, I've added some very basic validation in that we have to get back at _least_ 60 IPv4 Networks from the document or else the application terminates with a non-zero exit code. Pull requests are welcome to enhance this feature to something a little more robust.
-
-The best idea I have right now is to check the list already in the IP Group with the new list and determine if the data is wildly different, it should _almost_ always be in the same ballpark, a few records added, a few removed.

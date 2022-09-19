@@ -1,9 +1,7 @@
 import argparse
-import json
 from ipaddress import IPv4Network, IPv6Network, ip_network
 from sys import exit
 
-import bs4
 import requests
 from msal import ConfidentialClientApplication
 
@@ -41,27 +39,18 @@ def _filter_ip_versions(networks: list) -> dict:
     return {"ipv4": ipv4, "ipv6": ipv6}
 
 
-def _get_frontdoor_ips() -> list:
-    page = "https://www.microsoft.com/en-us/download/confirmation.aspx?id=56519"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36 Edg/105.0.1343.42"
-    }
-
-    try:
-        resp = requests.get(page, headers=headers)
-        resp.raise_for_status()
-
-        soup = bs4.BeautifulSoup(resp.content, features="html.parser")
-        json_file = soup.find("a", attrs={"data-bi-id": "downloadretry"}).attrs["href"]
-
-        file_resp = requests.get(json_file, headers=headers)
-        data = json.loads(file_resp.content)
-        frontdoor = next((section for section in data["values"] if section["id"] == "AzureFrontDoor.Frontend"))
-    except Exception as e:
-        log.warning("Unable to get IP list from Microsoft Documentation", exc_info=e)
-        exit(1)
-    return list(frontdoor["properties"]["addressPrefixes"])
+def _get_service_tag_details(auth_token):
+    url = (
+        "https://management.azure.com"
+        f"/subscriptions/{settings.subscription_id}"
+        "/providers/Microsoft.Network/locations/uksouth/serviceTagDetails"
+    )
+    data = requests.get(
+        url,
+        headers={"Authorization": f"Bearer {auth_token}", "Content-Type": "application/json"},
+        params={"api-version": "2022-01-01", "tagName": "AzureFrontDoor.Backend"},
+    ).json()
+    return data["value"][0]["properties"]["addressPrefixes"]
 
 
 def update_azure_ip_group(auth_token: str, addresses: list, dry_run: bool) -> None:
@@ -80,9 +69,9 @@ def update_azure_ip_group(auth_token: str, addresses: list, dry_run: bool) -> No
         resource_url, headers={"Authorization": f"Bearer {auth_token}", "Content-Type": "application/json"}
     ).json()
 
-    metadata_tags = existing_metadata.get('tags', {})
-    metadata_location = existing_metadata.get('location')
-    metadata_addresses = existing_metadata.get('properties', {}).get('ipAddresses', [])
+    metadata_tags = existing_metadata.get("tags", {})
+    metadata_location = existing_metadata.get("location")
+    metadata_addresses = existing_metadata.get("properties", {}).get("ipAddresses", [])
 
     log.warning(
         "Successfully pulled existing resource metadata",
@@ -124,7 +113,7 @@ def main() -> None:
     if args.dry_run:
         dry_run = True
     auth_token = _get_auth_token()
-    frontdoor_ips = _get_frontdoor_ips()
+    frontdoor_ips = _get_service_tag_details(auth_token=auth_token)
     frontdoor_ip_versions = _filter_ip_versions(frontdoor_ips)
     if len(frontdoor_ip_versions["ipv4"]) > settings.minimum_acceptable_v4_networks:
         update_azure_ip_group(auth_token=auth_token, addresses=frontdoor_ip_versions["ipv4"], dry_run=dry_run)
