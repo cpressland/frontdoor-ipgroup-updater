@@ -75,19 +75,28 @@ def update_azure_ip_group(auth_token: str, addresses: list, dry_run: bool) -> No
         f"/providers/Microsoft.Network/ipGroups/{ip_group_name}"
         "?api-version=2022-01-01"
     )
+
     existing_metadata = requests.get(
         resource_url, headers={"Authorization": f"Bearer {auth_token}", "Content-Type": "application/json"}
     ).json()
+
+    metadata_tags = existing_metadata.get('tags', {})
+    metadata_location = existing_metadata.get('location')
+    metadata_addresses = existing_metadata.get('properties', {}).get('ipAddresses', [])
+
     log.warning(
         "Successfully pulled existing resource metadata",
         extra={
-            "addresses": existing_metadata["properties"]["ipAddresses"],
-            "tags": existing_metadata["tags"],
-            "location": existing_metadata["location"],
+            "addresses": metadata_addresses,
+            "tags": metadata_tags,
+            "location": metadata_location,
         },
     )
+
     if dry_run:
-        log.warning("Dry Run mode enabled, skipping actual update")
+        log.warning("Dry Run mode enabled, skipping update")
+    elif metadata_addresses == addresses:
+        log.warning("No IP Addresses to change, skipping update")
     else:
         log.warning("Submitting new list of IPs to Azure API", extra={"ips": addresses})
         try:
@@ -95,8 +104,8 @@ def update_azure_ip_group(auth_token: str, addresses: list, dry_run: bool) -> No
                 resource_url,
                 headers={"Authorization": f"Bearer {auth_token}", "Content-Type": "application/json"},
                 json={
-                    "tags": existing_metadata["tags"],
-                    "location": existing_metadata["location"],
+                    "tags": metadata_tags,
+                    "location": metadata_location,
                     "properties": {"ipAddresses": addresses},
                 },
             )
